@@ -1,0 +1,49 @@
+Here's a practice project idea: Create a simple "Todo List API" that builds on the concepts you've learned but adds just a bit more complexity:
+The API would manage a list of tasks where each task has:
+
+A title
+A description
+A status (e.g., "pending", "in-progress", "completed")
+A priority level (1-5)
+
+This would practice the same concepts but add:
+
+More complex Pydantic models with multiple fields
+A list of items instead of a single string
+Field validation for specific values (status can only be certain values, priority must be 1-5)
+
+Basic structure would be:
+python
+class Task(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(..., min_length=1, max_length=1000)
+    status: str = Field(..., pattern="^(pending|in-progress|completed)$")
+    priority: int = Field(..., ge=1, le=5)
+
+class TaskStore:
+    def __init__(self):
+        self.tasks: list[Task] = []
+    
+    # Methods to:
+    # - add_task
+    # - get_all_tasks
+    # - update_task
+    # - delete_task
+    # - get_task_by_title
+    
+Endpoints would be:
+
+GET /tasks (list all tasks)
+GET /tasks/{title} (get specific task)
+POST /tasks (create new task)
+PUT /tasks/{title} (update task)
+DELETE /tasks/{title} (delete task)
+
+This builds on what you've learned but introduces:
+
+Working with lists of objects
+More complex validation rules
+URL parameters (like {title})
+More sophisticated data management
+
+Would you like me to explain any part of this in more detail to help you get started?
