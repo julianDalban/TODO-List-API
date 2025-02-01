@@ -58,5 +58,8 @@ class TaskStore:
     def __init__(self):
         self.tasks = dict[Task] = dict()
     
-    def add_task(self, Task):
+    def add_task(self, Task) -> bool:
         if Task.title in self.tasks:
+            return False
+        self.tasks[Task.title] = Task
+        return True
