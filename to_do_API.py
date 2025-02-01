@@ -39,11 +39,24 @@ class Task(BaseModel):
             }
         }
 
+# Defining a structure for what a typical response should look like
+class MessageResponse(BaseModel):
+    message: str = Field(
+        ...,
+        pattern='^(Success|Error)',
+        description='This represents the status message',
+        examples= ['Success', 'Error']
+    ),
+    data: str = Field(
+        default=None,
+        description='Response data from the '
+    )
+
 
 # Defining the mechanism of storing the task
 class TaskStore: 
     def __init__(self):
         self.tasks = dict[Task] = dict()
     
-    def add_task(Task):
-        if tasks.
+    def add_task(self, Task):
+        if Task.title in self.tasks:
