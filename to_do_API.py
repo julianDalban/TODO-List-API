@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic  import BaseModel, Field
+from pydantic import BaseModel, Field
 
 app = FastAPI(title='To Do List API')
 
@@ -9,7 +9,8 @@ class Task(BaseModel):
         ...,
         min_length=1,
         max_length=50,
-        description='The title of the given task.'
+        description='The title of the given task.',
+        
     ),
     description: str = Field(
         default=None,
@@ -55,11 +56,31 @@ class MessageResponse(BaseModel):
 
 # Defining the mechanism of storing the task
 class TaskStore: 
-    def __init__(self):
-        self.tasks = dict[Task] = dict()
+    def __init__(self): # Initialize the tasks object to store all the tasks. Using a dict for accurate retrieval of specific task by title
+        self.tasks: dict[Task] = dict() # Titles will be ensured to be unique
     
-    def add_task(self, Task) -> bool:
-        if Task.title in self.tasks:
+    def add_task(self, task: Task) -> bool: # Adding a task to the dict, returns bool based on if the operation was performed or not
+        if task.title in self.tasks:
             return False
-        self.tasks[Task.title] = Task
+        self.tasks.update({task.title, task})
         return True
+    
+    def get_all_tasks(self) -> list[Task]: # Retrieves all tasks in the form of a list
+        all_tasks = self.tasks.values()
+        return all_tasks
+    
+    def update_task(self, title: str, updated_task: Task) -> bool: # TODO: change to not allow title change, functionality to be changed
+        if title not in self.tasks.keys():
+            return False
+        self.tasks.pop(title)
+        self.tasks.update({updated_task.title, updated_task})
+        return True
+    
+    def delete_task(self, title: str) -> True:
+        if title not in self.tasks.keys():
+            return False
+        self.tasks.pop(title)
+        return True
+    
+    def get_task_by_title(self, title: str):
+        pass
