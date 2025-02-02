@@ -39,6 +39,8 @@ class Task(BaseModel):
                 'priority': 1
             }
         }
+        extra = 'forbid'
+        title = 'Task'
 
 # Defining a structure for what a typical response should look like
 class MessageResponse(BaseModel):
@@ -50,9 +52,38 @@ class MessageResponse(BaseModel):
     ),
     data: str = Field(
         default=None,
-        description='Response data from the '
+        description='Response data from the request'
+    ),
+    status: int = Field(
+        ...,
+        ge=0,
+        max_digits=3,
+        description='Status code of the response'
     )
+    
+    class Config:
+        schema_extra = {
+            'example' : {
+                'message' : 'Error',
+                'data' : None,
+                'status' : 404
+            }
+        }
 
+class TitleInput(BaseModel):
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description='The title of the given task.',
+    )
+    
+    class Config:
+        schema_extra = {
+            'example' : {
+                'title' : 'Pushups for the month'
+            }
+        }
 
 # Defining the mechanism of storing the task
 class TaskStore: 
@@ -69,18 +100,24 @@ class TaskStore:
         all_tasks = self.tasks.values()
         return all_tasks
     
-    def update_task(self, title: str, updated_task: Task) -> bool: # TODO: change to not allow title change, functionality to be changed
+    def update_task(self, title: str, updated_task: Task) -> bool: # Updates a task based on the given title
+        if title not in self.tasks.keys():
+            return False
+        self.tasks[title] = updated_task
+        return True
+    
+    def delete_task(self, title: str) -> True: # Deletes a task based on the given title
         if title not in self.tasks.keys():
             return False
         self.tasks.pop(title)
-        self.tasks.update({updated_task.title, updated_task})
         return True
     
-    def delete_task(self, title: str) -> True:
+    def get_task_by_title(self, title: str) -> Task: # Retrieves a task specified by title
         if title not in self.tasks.keys():
-            return False
-        self.tasks.pop(title)
-        return True
-    
-    def get_task_by_title(self, title: str):
-        pass
+            return None
+        task = self.tasks.get(title)
+        return task
+
+
+
+
