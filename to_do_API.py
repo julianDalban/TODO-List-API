@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Path
 from pydantic import BaseModel, Field, field_validator
 from typing import Any, Optional
 
+# Convention naming for this file would be main.py
+
 app = FastAPI(title='To Do List API')
 
 # Defining what the input values should look like.
@@ -15,20 +17,17 @@ class Task(BaseModel):
     )
     description: str = Field(
         ...,
-        default=None,
         min_length=1,
         max_length=1000,
         description='Describes the task, what is required.'
     )
     status: str = Field(
         ...,
-        default='pending',
         pattern="^(pending|in-progress|completed)$",
         description='The status of the task.'
     )
     priority: int = Field(
         ...,
-        default=1,
         ge=1,
         le=5,
         description='Describes the priority of the task.'
@@ -43,7 +42,7 @@ class Task(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             'example' : {
                 'title': 'Pushups for the week',
                 'description': '''Attempting to do 50 pushups a day for the next week.
@@ -75,7 +74,7 @@ class MessageResponse(BaseModel):
     )
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             'example' : {
                 'message' : 'Error',
                 'data' : None,
@@ -96,7 +95,7 @@ class TaskStore:
         return True
     
     def get_all_tasks(self) -> list[Task]: # Retrieves all tasks in the form of a list
-        all_tasks = self.tasks.values()
+        all_tasks = list(self.tasks.values())
         return all_tasks
     
     def update_task(self, title: str, updated_task: Task) -> bool: # Updates a task based on the given title
@@ -189,7 +188,13 @@ async def update_given_task(
     )
 ):
     try:
-        if not task_store.update_task(title, input_data):
+        if title != input_data.title:
+            return MessageResponse(
+                message='Error',
+                data='Cannot update a task name',
+                status=404
+            ).model_dump()
+        elif not task_store.update_task(title, input_data):
             return MessageResponse(
                 message='Error',
                 data='Task does not exist',
