@@ -189,11 +189,21 @@ async def read_all_tasks(
     )
 ) -> MessageResponse:
     try:
+        filtered_tasks = task_store.get_filtered_tasks(
+            status=status,
+            priority=priority,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+        
         return MessageResponse(
             message='Success',
-            data= task_store.get_all_tasks(),
+            data= filtered_tasks,
             status=200
         ).model_dump()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400,detail=str(e))
 
