@@ -1,10 +1,16 @@
-from fastapi import FastAPI, HTTPException, Path
+from fastapi import FastAPI, HTTPException, Path, Query
 from pydantic import BaseModel, Field, field_validator
 from typing import Any, Optional
+from enum import Enum
+import re
 
 # Convention naming for this file would be main.py
 
 app = FastAPI(title='To Do List API')
+
+class SortOrder(str, Enum):
+    asc = 'asc'
+    desc = 'desc'
 
 # Defining what the input values should look like.
 class Task(BaseModel):
@@ -115,11 +121,73 @@ class TaskStore:
             return None
         task = self.tasks.get(title)
         return task
+    
+    def get_filtered_tasks(
+        self,
+        status: Optional[str] = None,
+        priority: Optional[int] = None,
+        search: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: SortOrder = SortOrder.asc
+    ) -> list[Task]:
+        
+        filtered_tasks = list(self.tasks.values())
+        
+        if status:
+            filtered_tasks = [
+                task for task in filtered_tasks if task.status == status
+            ]
+        
+        if priority:
+            filtered_tasks = [
+                task for task in filtered_tasks if task.priority == priority
+            ]
+        
+        if search:
+            search_pattern = re.compile(search, re.IGNORECASE)
+            filtered_tasks = [
+                task for task in filtered_tasks
+                if search_pattern.search(task.title) or search_pattern.search(task.description)
+            ]
+
+        if sort_by:
+            reverse = sort_order == SortOrder.desc
+            filtered_tasks.sort(
+                key=lambda x : getattr(x, sort_by),
+                reverse=reverse
+            )
+            
+        return filtered_tasks
 
 task_store = TaskStore()
 
 @app.get('/tasks')
-async def read_all_tasks():
+async def read_all_tasks(
+    status: Optional[str] = Query(
+        None,
+        description='Filter tasks by status (pending, in-progress, completed)'
+    ),
+    priority: Optional[int] = Query(
+        None,
+        ge=1,
+        le=5,
+        description='Filter tasks by priority level (1-5)'
+    ),
+    search: Optional[str] = Query(
+        None,
+        min_length=1,
+        description='Search in task titles and descriptions'
+    ),
+    sort_by: Optional[str] = Query(
+        None,
+        pattern='^(title|priority|status)$',
+        description='Field to sort by'
+    ),
+    sort_order: SortOrder = Query(
+        SortOrder.asc,
+        description='Sort order (asc or desc)'
+    )
+) -> MessageResponse:
     try:
         return MessageResponse(
             message='Success',
@@ -137,7 +205,7 @@ async def read_task(
         max_length=50,
         description='Title of the task to retrieve'
     )
-):
+) -> MessageResponse:
     try:
         task = task_store.get_task_by_title(title)
         if not task:
@@ -158,7 +226,9 @@ async def read_task(
         raise HTTPException(status_code=400,detail=str(e))
 
 @app.post('/tasks')
-async def create_task(input_data: Task):
+async def create_task(
+    input_data: Task
+) -> MessageResponse:
     try:
         if not task_store.add_task(input_data):
             return MessageResponse(
@@ -186,7 +256,7 @@ async def update_given_task(
         max_length=50,
         description='Title of the task to retrieve'
     )
-):
+) -> MessageResponse:
     try:
         if title != input_data.title:
             return MessageResponse(
@@ -219,7 +289,7 @@ async def delete_given_task(
         max_length=50,
         description='Title of the task to retrieve'
     )
-):
+) -> MessageResponse:
     try:
         if not task_store.delete_task(title):
             return MessageResponse(
