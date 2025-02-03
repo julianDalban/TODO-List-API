@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Path, Query
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from typing import Any, Optional
 from enum import Enum
 import re
@@ -8,9 +8,25 @@ import re
 
 app = FastAPI(title='To Do List API')
 
+class TaskStatus(str, Enum):
+    PENDING = 'pending'
+    IN_PROGRESS = 'in-progress'
+    COMPLETED = 'completed'
+
+class TaskPriority(int, Enum):
+    VERY_LOW = 1
+    LOW = 2
+    MEDIUM = 3
+    HIGH = 4
+    VERY_HIGH = 5
+
+class SortField(str, Enum):
+    TITLE = 'title'
+    PRIORITY = 'priority'
+    STATUS = 'status'
 class SortOrder(str, Enum):
-    asc = 'asc'
-    desc = 'desc'
+    ASC = 'asc'
+    DESC = 'desc'
 
 # Defining what the input values should look like.
 class Task(BaseModel):
@@ -27,25 +43,14 @@ class Task(BaseModel):
         max_length=1000,
         description='Describes the task, what is required.'
     )
-    status: str = Field(
-        ...,
-        pattern="^(pending|in-progress|completed)$",
+    status: TaskStatus = Field(
+        default=TaskStatus.PENDING,
         description='The status of the task.'
     )
-    priority: int = Field(
-        ...,
-        ge=1,
-        le=5,
+    priority: TaskPriority = Field(
+        default=TaskPriority.VERY_LOW,
         description='Describes the priority of the task.'
     )
-    
-    @field_validator('status')
-    @classmethod
-    def validate_status(cls, v):
-        valid_statuses = {'pending', 'in-progress', 'completed'}
-        if v not in valid_statuses:
-            raise ValueError(f'Status must be one of {valid_statuses}')
-        return v
     
     class Config:
         json_schema_extra = {
@@ -57,6 +62,7 @@ class Task(BaseModel):
                 'priority': 1
             }
         }
+        use_enum_values = True # API returns the Enum vals rather than name
         extra = 'forbid'
         title = 'Task'
 
@@ -116,7 +122,7 @@ class TaskStore:
         self.tasks.pop(title)
         return True
     
-    def get_task_by_title(self, title: str) -> Task: # Retrieves a task specified by title
+    def get_task_by_title(self, title: str) -> Optional[Task]: # Retrieves a task specified by title
         if title not in self.tasks.keys():
             return None
         task = self.tasks.get(title)
@@ -124,11 +130,11 @@ class TaskStore:
     
     def get_filtered_tasks(
         self,
-        status: Optional[str] = None,
-        priority: Optional[int] = None,
+        status: Optional[TaskStatus] = None,
+        priority: Optional[TaskPriority] = None,
         search: Optional[str] = None,
-        sort_by: Optional[str] = None,
-        sort_order: SortOrder = SortOrder.asc
+        sort_by: Optional[SortField] = None,
+        sort_order: SortOrder = SortOrder.ASC
     ) -> list[Task]:
         
         filtered_tasks = list(self.tasks.values())
@@ -151,9 +157,9 @@ class TaskStore:
             ]
 
         if sort_by:
-            reverse = sort_order == SortOrder.desc
+            reverse = sort_order == SortOrder.DESC
             filtered_tasks.sort(
-                key=lambda x : getattr(x, sort_by),
+                key=lambda x: getattr(x, sort_by),
                 reverse=reverse
             )
             
@@ -162,15 +168,13 @@ class TaskStore:
 task_store = TaskStore()
 
 @app.get('/tasks')
-async def read_all_tasks(
-    status: Optional[str] = Query(
+async def read_tasks(
+    status: Optional[TaskStatus] = Query(
         None,
         description='Filter tasks by status (pending, in-progress, completed)'
     ),
-    priority: Optional[int] = Query(
+    priority: Optional[TaskPriority] = Query(
         None,
-        ge=1,
-        le=5,
         description='Filter tasks by priority level (1-5)'
     ),
     search: Optional[str] = Query(
@@ -178,13 +182,12 @@ async def read_all_tasks(
         min_length=1,
         description='Search in task titles and descriptions'
     ),
-    sort_by: Optional[str] = Query(
+    sort_by: Optional[SortField] = Query(
         None,
-        pattern='^(title|priority|status)$',
         description='Field to sort by'
     ),
     sort_order: SortOrder = Query(
-        SortOrder.asc,
+        SortOrder.ASC,
         description='Sort order (asc or desc)'
     )
 ) -> MessageResponse:
