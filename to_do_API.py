@@ -1,34 +1,47 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, HTTPException, Path
+from pydantic import BaseModel, Field, field_validator
+from typing import Any, Optional
 
 app = FastAPI(title='To Do List API')
 
 # Defining what the input values should look like.
 class Task(BaseModel):
+    
     title: str = Field(
         ...,
         min_length=1,
         max_length=50,
-        description='The title of the given task.',
-        
-    ),
+        description='The title of the given task.'
+    )
     description: str = Field(
+        ...,
         default=None,
         min_length=1,
         max_length=1000,
         description='Describes the task, what is required.'
-    ),
+    )
     status: str = Field(
+        ...,
         default='pending',
         pattern="^(pending|in-progress|completed)$",
         description='The status of the task.'
-    ),
+    )
     priority: int = Field(
+        ...,
         default=1,
         ge=1,
         le=5,
         description='Describes the priority of the task.'
     )
+    
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v):
+        valid_statuses = {'pending', 'in-progress', 'completed'}
+        if v not in valid_statuses:
+            raise ValueError(f'Status must be one of {valid_statuses}')
+        return v
+    
     class Config:
         schema_extra = {
             'example' : {
@@ -49,15 +62,15 @@ class MessageResponse(BaseModel):
         pattern='^(Success|Error)',
         description='This represents the status message',
         examples= ['Success', 'Error']
-    ),
-    data: str = Field(
+    )
+    data: Any = Field(
         default=None,
         description='Response data from the request'
-    ),
+    )
     status: int = Field(
         ...,
-        ge=0,
-        max_digits=3,
+        ge=100,
+        le=599,
         description='Status code of the response'
     )
     
@@ -74,12 +87,12 @@ class MessageResponse(BaseModel):
 # Defining the mechanism of storing the task
 class TaskStore: 
     def __init__(self): # Initialize the tasks object to store all the tasks. Using a dict for accurate retrieval of specific task by title
-        self.tasks: dict[Task] = dict() # Titles will be ensured to be unique
+        self.tasks: dict[str, Task] = {} # Titles will be ensured to be unique
     
     def add_task(self, task: Task) -> bool: # Adding a task to the dict, returns bool based on if the operation was performed or not
         if task.title in self.tasks:
             return False
-        self.tasks.update({task.title, task})
+        self.tasks[task.title] = task
         return True
     
     def get_all_tasks(self) -> list[Task]: # Retrieves all tasks in the form of a list
@@ -113,12 +126,19 @@ async def read_all_tasks():
             message='Success',
             data= task_store.get_all_tasks(),
             status=200
-        )
+        ).model_dump()
     except Exception as e:
         raise HTTPException(status_code=400,detail=str(e))
 
 @app.get('/tasks/{title}')
-async def read_task(title: str):
+async def read_task(
+    title: str = Path(
+        ...,
+        min_length=1,
+        max_length=50,
+        description='Title of the task to retrieve'
+    )
+):
     try:
         task = task_store.get_task_by_title(title)
         if not task:
@@ -126,13 +146,13 @@ async def read_task(title: str):
                 message='Error',
                 data='Task could not be found',
                 status=404
-            )
+            ).model_dump()
         else:
             return MessageResponse(
                 message='Success',
                 data=task,
                 status=200
-            )
+            ).model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -145,54 +165,69 @@ async def create_task(input_data: Task):
             return MessageResponse(
                 message='Error',
                 data='Task with the same title already exists',
-                status=200
-            )
+                status=409
+            ).model_dump()
         else:
             return MessageResponse(
                 message='Success',
                 data='Task successfully added',
                 status=200
-            )
+            ).model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.put('/tasks/{title}')
-async def update_given_task(title: str, input_data: Task):
+async def update_given_task(
+    input_data: Task,
+    title: str = Path(
+        ...,
+        min_length=1,
+        max_length=50,
+        description='Title of the task to retrieve'
+    )
+):
     try:
         if not task_store.update_task(title, input_data):
             return MessageResponse(
                 message='Error',
                 data='Task does not exist',
                 status=404
-            )
+            ).model_dump()
         else:
             return MessageResponse(
                 message='Success',
                 data='Task successfully updated',
                 status=200
-            )
+            ).model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.delete('tasks/{title}')
-async def delete_given_task(title:str):
+@app.delete('/tasks/{title}')
+async def delete_given_task(
+    title: str = Path(
+        ...,
+        min_length=1,
+        max_length=50,
+        description='Title of the task to retrieve'
+    )
+):
     try:
         if not task_store.delete_task(title):
             return MessageResponse(
                 message='Error',
                 data='Task not found',
                 status=404
-            )
+            ).model_dump()
         else:
             return MessageResponse(
                 message='Success',
                 data='Task successfully deleted',
                 status=200
-            )
+            ).model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
