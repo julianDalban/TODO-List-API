@@ -19,12 +19,12 @@ class Task(BaseModel):
         description='Describes the task, what is required.'
     ),
     status: str = Field(
-        ...,
+        default='pending',
         pattern="^(pending|in-progress|completed)$",
         description='The status of the task.'
     ),
     priority: int = Field(
-        ...,
+        default=1,
         ge=1,
         le=5,
         description='Describes the priority of the task.'
@@ -70,20 +70,6 @@ class MessageResponse(BaseModel):
             }
         }
 
-class TitleInput(BaseModel):
-    title: str = Field(
-        ...,
-        min_length=1,
-        max_length=50,
-        description='The title of the given task.',
-    )
-    
-    class Config:
-        schema_extra = {
-            'example' : {
-                'title' : 'Pushups for the month'
-            }
-        }
 
 # Defining the mechanism of storing the task
 class TaskStore: 
@@ -106,7 +92,7 @@ class TaskStore:
         self.tasks[title] = updated_task
         return True
     
-    def delete_task(self, title: str) -> True: # Deletes a task based on the given title
+    def delete_task(self, title: str) -> bool: # Deletes a task based on the given title
         if title not in self.tasks.keys():
             return False
         self.tasks.pop(title)
@@ -118,6 +104,96 @@ class TaskStore:
         task = self.tasks.get(title)
         return task
 
+task_store = TaskStore()
 
+@app.get('/tasks')
+async def read_all_tasks():
+    try:
+        return MessageResponse(
+            message='Success',
+            data= task_store.get_all_tasks(),
+            status=200
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400,detail=str(e))
 
+@app.get('/tasks/{title}')
+async def read_task(title: str):
+    try:
+        task = task_store.get_task_by_title(title)
+        if not task:
+            return MessageResponse(
+                message='Error',
+                data='Task could not be found',
+                status=404
+            )
+        else:
+            return MessageResponse(
+                message='Success',
+                data=task,
+                status=200
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400,detail=str(e))
 
+@app.post('/tasks')
+async def create_task(input_data: Task):
+    try:
+        if not task_store.add_task(input_data):
+            return MessageResponse(
+                message='Error',
+                data='Task with the same title already exists',
+                status=200
+            )
+        else:
+            return MessageResponse(
+                message='Success',
+                data='Task successfully added',
+                status=200
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.put('/tasks/{title}')
+async def update_given_task(title: str, input_data: Task):
+    try:
+        if not task_store.update_task(title, input_data):
+            return MessageResponse(
+                message='Error',
+                data='Task does not exist',
+                status=404
+            )
+        else:
+            return MessageResponse(
+                message='Success',
+                data='Task successfully updated',
+                status=200
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete('tasks/{title}')
+async def delete_given_task(title:str):
+    try:
+        if not task_store.delete_task(title):
+            return MessageResponse(
+                message='Error',
+                data='Task not found',
+                status=404
+            )
+        else:
+            return MessageResponse(
+                message='Success',
+                data='Task successfully deleted',
+                status=200
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
