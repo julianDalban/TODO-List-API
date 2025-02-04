@@ -252,8 +252,8 @@ async def create_task(
         else:
             return MessageResponse(
                 message='Success',
-                data='Task successfully added',
-                status=200
+                data='Task successfully created',
+                status=201
             ).model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
