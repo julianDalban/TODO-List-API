@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Path, Query
+from fastapi import FastAPI, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 from enum import Enum
@@ -71,8 +71,7 @@ class MessageResponse(BaseModel):
     message: str = Field(
         ...,
         pattern='^(Success|Error)',
-        description='This represents the status message',
-        examples= ['Success', 'Error']
+        description='This represents the status message'
     )
     data: Any = Field(
         default=None,
@@ -123,10 +122,7 @@ class TaskStore:
         return True
     
     def get_task_by_title(self, title: str) -> Optional[Task]: # Retrieves a task specified by title
-        if title not in self.tasks.keys():
-            return None
-        task = self.tasks.get(title)
-        return task
+        return self.tasks.get(title)
     
     def get_filtered_tasks(
         self,
@@ -238,7 +234,7 @@ async def read_task(
     except Exception as e:
         raise HTTPException(status_code=400,detail=str(e))
 
-@app.post('/tasks')
+@app.post('/tasks', status_code=status.HTTP_201_CREATED)
 async def create_task(
     input_data: Task
 ) -> MessageResponse:
