@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
-from typing import Any, Optional
+from typing import Any, Optional, Generic, TypeVar
 from enum import Enum
 import re
 
@@ -30,7 +30,6 @@ class SortOrder(str, Enum):
 
 # Defining what the input values should look like.
 class Task(BaseModel):
-    
     title: str = Field(
         ...,
         min_length=1,
@@ -93,6 +92,31 @@ class MessageResponse(BaseModel):
             }
         }
 
+T = TypeVar('T')
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    items: list[T]
+    total: int
+    skip: int
+    limit: Optional[int]
+    
+    @property
+    def has_more(self) -> bool:
+        '''Return True if there are more items after this page'''
+        if self.limit is None:
+            return False
+        return self.skip + len(self.items) < self.total
+    
+    class Config:
+        json_schema_extra = {
+            'example': {
+                'items': [],
+                'total': 100,
+                'skip': 0,
+                'limit': 10
+            }
+        }
+
 
 # Defining the mechanism of storing the task
 class TaskStore: 
@@ -130,8 +154,10 @@ class TaskStore:
         priority: Optional[TaskPriority] = None,
         search: Optional[str] = None,
         sort_by: Optional[SortField] = None,
-        sort_order: SortOrder = SortOrder.ASC
-    ) -> list[Task]:
+        sort_order: SortOrder = SortOrder.ASC,
+        skip: int=0,
+        limit: Optional[int] = None
+    ) -> tuple[list[Task], int]:
         
         filtered_tasks = list(self.tasks.values())
         
@@ -159,7 +185,14 @@ class TaskStore:
                 reverse=reverse
             )
             
-        return filtered_tasks
+        total_count = len(filtered_tasks)
+        
+        if limit:
+            filtered_tasks = filtered_tasks[skip: skip + limit]
+        else:
+            filtered_tasks = filtered_tasks[skip:]
+        
+        return filtered_tasks, total_count
 
 task_store = TaskStore()
 
@@ -185,20 +218,39 @@ async def read_tasks(
     sort_order: SortOrder = Query(
         SortOrder.ASC,
         description='Sort order (asc or desc)'
+    ),
+    skip: int = Query(
+        0, 
+        ge=0,
+        description='Number of items to skip (for pagination)'
+    ),
+    limit: Optional[int] = Query(
+        10,
+        ge=1,
+        le=100,
+        description='Maximum number of items to return (for pagination)'
     )
 ) -> MessageResponse:
     try:
-        filtered_tasks = task_store.get_filtered_tasks(
+        filtered_tasks, total_count = task_store.get_filtered_tasks(
             status=status,
             priority=priority,
             search=search,
             sort_by=sort_by,
-            sort_order=sort_order
+            sort_order=sort_order,
+            skip=skip,
+            limit=limit
         )
         
+        pagination = PaginatedResponse[Task](
+            items=filtered_tasks,
+            total=total_count,
+            skip=skip,
+            limit=limit
+        )
         return MessageResponse(
             message='Success',
-            data= filtered_tasks,
+            data= pagination.model_dump(),
             status=200
         ).model_dump()
     except ValueError as e:
