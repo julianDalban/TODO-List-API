@@ -1,8 +1,10 @@
-from fastapi import FastAPI, HTTPException, Path, Query, status
+from fastapi import FastAPI, HTTPException, Path, Query, status, HTTPException, status
 from pydantic import BaseModel, Field
-from typing import Any, Optional, Generic, TypeVar
+from typing import Any, Optional, Generic, TypeVar, Dict
 from enum import Enum
 import re
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 
 # Convention naming for this file would be main.py
 
@@ -117,6 +119,44 @@ class PaginatedResponse(BaseModel, Generic[T]):
             }
         }
 
+class CustomHTTPException(HTTPException):
+    def __init__(
+        self,
+        status_code: int,
+        detail = str,
+        error_code: Optional[str] = None,
+        headers : Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(status_code=status_code, detail=detail, headers=headers)
+        self.error_code = error_code
+
+@app.exception_handler(CustomHTTPException)
+async def custom_http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=MessageResponse(
+            message='Error',
+            data={
+                'detail': exc.detail,
+                'error_code': exc.error_code
+            },
+            status=exc.status_code
+        ).model_dump()
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=MessageResponse(
+            message='Error',
+            data={
+                'detail': str(exc),
+                'error_code': 'VALIDATION_ERROR'
+            },
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY
+        ).model_dump()
+    )
 
 # Defining the mechanism of storing the task
 class TaskStore: 
@@ -270,21 +310,24 @@ async def read_task(
     try:
         task = task_store.get_task_by_title(title)
         if not task:
-            return MessageResponse(
-                message='Error',
-                data='Task could not be found',
-                status=404
-            ).model_dump()
-        else:
-            return MessageResponse(
-                message='Success',
-                data=task,
-                status=200
-            ).model_dump()
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+            raise CustomHTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Task could not be found',
+                error_code='TASK_NOT_FOUND'
+            )
+        return MessageResponse(
+            message='Success',
+            data=task,
+            status=200
+        ).model_dump()
+    except CustomHTTPException:
+        raise 
     except Exception as e:
-        raise HTTPException(status_code=400,detail=str(e))
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+            error_code='INTERNAL_ERROR'
+        )
 
 @app.post('/tasks', status_code=status.HTTP_201_CREATED)
 async def create_task(
