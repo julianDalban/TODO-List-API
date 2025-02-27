@@ -46,4 +46,4 @@ More complex validation rules
 URL parameters (like {title})
 More sophisticated data management
 
-Would you like me to explain any part of this in more detail to help you get started?
+To run the app: uvicorn app.main:app --reload
