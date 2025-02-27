@@ -1,0 +1,1 @@
+# This file is required to make 'core' a proper Python package
