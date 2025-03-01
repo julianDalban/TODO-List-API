@@ -6,8 +6,11 @@ from app.core.exceptions import CustomHTTPException
 from app.core.config import settings
 from app.api.routes import api_router
 from app.schemas.task import MessageResponse
+from app.db.init_db import init_db
 
 app = FastAPI(title=settings.PROJECT_NAME) # Create FastAPI instance
+
+init_db() # initialise database tables
 
 app.include_router(api_router, prefix=settings.API_V1_STR) # Include API Router
 
