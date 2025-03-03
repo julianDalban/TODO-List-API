@@ -1,13 +1,15 @@
-from fastapi import APIRouter, Path, Query, status, HTTPException
+from fastapi import APIRouter, Path, Query, status, Depends, HTTPException
+from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.schemas.task import Task, TaskStatus, TaskPriority, MessageResponse
 from app.schemas.pagination import SortField, SortOrder, PaginatedResponse
-from app.services.task_store import TaskStore
+from app.services.task_service import TaskService
 from app.core.exceptions import CustomHTTPException
+from app.db.session import get_db
+
 
 router = APIRouter()
-task_store = TaskStore()
 
 @router.get('')
 async def read_tasks(
@@ -42,10 +44,15 @@ async def read_tasks(
         ge=1,
         le=100,
         description='Maximum number of items to return (for pagination)'
-    )
+    ),
+    db: Session = Depends(get_db) # db dependency
 ) -> MessageResponse:
     try:
-        filtered_tasks, total_count = task_store.get_filtered_tasks(
+        # create service with injected db session
+        service = TaskService(db)
+        
+        # use service
+        filtered_tasks, total_count = service.get_filtered_tasks(
             status=status,
             priority=priority,
             search=search,
@@ -61,11 +68,14 @@ async def read_tasks(
             skip=skip,
             limit=limit
         )
+        
         return MessageResponse(
             message='Success',
-            data= pagination.model_dump(),
+            data=pagination.model_dump(),
             status=200
         ).model_dump()
+    except CustomHTTPException:
+        raise
     except ValueError as e:
         raise CustomHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -86,10 +96,13 @@ async def read_task(
         min_length=1,
         max_length=50,
         description='Title of the task to retrieve'
-    )
+    ),
+    db: Session = Depends(get_db)
 ) -> MessageResponse:
     try:
-        task = task_store.get_task_by_title(title)
+        service = TaskService(db) # create service with injected db session
+        task = service.get_task_by_title(title) # use service
+        
         if not task:
             raise CustomHTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -110,21 +123,23 @@ async def read_task(
             error_code='INTERNAL_ERROR'
         )
 
+# TODO
 @router.post('', status_code=status.HTTP_201_CREATED)
 async def create_task(
-    input_data: Task
+    input_data: Task,
+    db: Session = Depends(get_db) # Inject db session
 ) -> MessageResponse:
     try:
-        if not task_store.add_task(input_data):
-            raise CustomHTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail='Task with same title already exists',
-                error_code='DUPLICATE_TASK'
-            )
+        # create service with injected db session
+        service = TaskService(db)
+        
+        # create task using service
+        service.create_task(input_data)
+        
         return MessageResponse(
             message='Success',
             data='Task successfully created',
-            status=201
+            status=201,
         ).model_dump()
     except CustomHTTPException:
         raise
