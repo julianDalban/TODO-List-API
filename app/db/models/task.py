@@ -17,7 +17,15 @@ class Task(Base):
     #Task description
     description = Column(Text, nullable=False)
     
+    
     # Status stored as a string (enum val necessary)
+    status = Column(
+        String,
+        nullable=False,
+        default=TaskStatus.PENDING.value
+    )
+    
+    # Priority stored as an int
     priority = Column(
         Integer,
         nullable=False,
@@ -25,7 +33,7 @@ class Task(Base):
     )
     
     # Timestamps for record-keeping
-    creeated_at = Column(
+    created_at = Column(
         TIMESTAMP(timezone=True),
         server_default=func.now(),
         nullable=False
