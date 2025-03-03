@@ -1,11 +1,12 @@
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Tuple
 from fastapi import status
 
 from app.db.repositories.task import TaskRepository
 from app.db.models.task import Task as TaskModel
-from app.schemas.task import Task as TaskSchema
+from app.schemas.task import Task as TaskSchema, TaskStatus, TaskPriority
 from app.core.exceptions import CustomHTTPException
+from app.schemas.pagination import SortField, SortOrder
 
 class TaskService:
     '''
@@ -98,6 +99,73 @@ class TaskService:
         
         # convert to Pydantic schema and return
         return self._db_to_schema(db_task)
+
+    def delete_task(self, title: str) -> bool:
+        '''
+        Delete a task by title.
+        
+        Args:
+            title: The title of the task to delete
+        
+        Returns:
+            True if task was deleted, raises exception otherwise
+        
+        Raises:
+            CustomHTTPException: If task not found
+        '''
+        # del task from db
+        deleted = self.repository.delete(title)
+        
+        # if task not found
+        if not deleted:
+            raise CustomHTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Task not found',
+                error_code='TASK_NOT_FOUND'
+            )
+        
+        return True
+    
+    def get_filtered_tasks(
+        self,
+        status: Optional[TaskStatus ] = None,
+        priority: Optional[TaskPriority] = None,
+        search: Optional[str] = None,
+        sort_by: Optional[SortField] = None,
+        sort_order: SortOrder = SortOrder.ASC,
+        skip: int = 0,
+        limit: Optional[int] = None
+    ) -> Tuple[list[TaskSchema], int]:
+        '''
+        Get tasks with filtering, sorting, and paginations.
+        
+        Args:
+            status: Filter by task status
+            priority: Filter by priority level
+            search: Search for title and description
+            sort_by: Field to sort by
+            sort_order: Ascending or descending sort
+            skip: Number of records to skip (pagination)
+            limit: Max num of records to return
+        
+        Returns:
+            Tuple containing (list of tasks as Pydantic schemas, total count)
+        '''
+        # get filtered tasks from repo
+        db_tasks, total_count = self.repository.get_all(
+            status=status.value if status else None,
+            priority=priority.value if status else None,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            skip=skip,
+            limit=limit
+        )
+        
+        # convert db models to Pydantic schemas
+        task_schemas = [self._db_to_schema(task) for task in db_tasks]
+        
+        return task_schemas, total_count
     
     def _db_to_schema(self, db_task: TaskModel) -> TaskSchema:
         '''
