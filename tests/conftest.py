@@ -55,3 +55,69 @@ def db_session(setup_test_db):
     
     This ensures test isolation - changes from one test don't affect others.
     '''
+    # Create a new session for the test
+    session = TestSessionLocal()
+    
+    try:
+        # provide the session to the test
+        yield session
+    finally:
+        # after test completes (even if it fails), rollback any changes
+        session.rollback()
+        # and close the session
+        session.close()
+
+@pytest.fixture(scope='function')
+def client(db_session):
+    '''
+    Fixture that creates a TestClient with a test database session.
+    
+    This fixture:
+    1. Overrides the get_db dependency to use our test session
+    2. Creates a TestClient with this override
+    3. Yields the client for the test to use
+    4. Resets the override after the test
+    
+    This allows tests to make API requests that use the test database.
+    '''
+    # Define a function that will replace get_db in our FastAPI app
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass # Cleanup is handled by the db_session ficture
+        
+    # override the get_db dependency
+    app.dependency_overrides[get_db] = override_get_db
+    
+    # create and yield the test client
+    with TestClient(app) as test_client:
+        yield test_client
+
+    # reset the dependency override after the test
+    app.dependency_overrides = {}
+
+@pytest.fixture(scope='function')
+def sample_task(db_session):
+    '''
+    Fixture that creates a sample task in the db.
+    
+    This is useful for tests that need pre-existing data.
+    '''
+    from app.db.models.task import Task as TaskModel
+    
+    # create a task instance
+    task = TaskModel(
+        title='Test Task',
+        description='This is a test task',
+        status='pending',
+        priority=3
+    )
+    
+    # add it to the database
+    db_session.add(task)
+    db_session.commit()
+    db_session.refresh(task)
+    
+    # return the created task to use in tests
+    return task
