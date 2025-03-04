@@ -111,7 +111,7 @@ async def read_task(
             )
         return MessageResponse(
             message='Success',
-            data=task,
+            data=task.model_dump(),
             status=200
         ).model_dump()
     except CustomHTTPException:
@@ -123,7 +123,6 @@ async def read_task(
             error_code='INTERNAL_ERROR'
         )
 
-# TODO
 @router.post('', status_code=status.HTTP_201_CREATED)
 async def create_task(
     input_data: Task,
@@ -134,11 +133,11 @@ async def create_task(
         service = TaskService(db)
         
         # create task using service
-        service.create_task(input_data)
+        task = service.create_task(input_data)
         
         return MessageResponse(
             message='Success',
-            data='Task successfully created',
+            data=task.model_dump(),
             status=201,
         ).model_dump()
     except CustomHTTPException:
@@ -164,21 +163,12 @@ async def update_given_task(
         min_length=1,
         max_length=50,
         description='Title of the task to retrieve'
-    )
+    ),
+    db: Session = Depends(get_db)
 ) -> MessageResponse:
     try:
-        if title != input_data.title:
-            raise CustomHTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail='Cannot update a task name',
-                error_code='TITLE_MISMATCH'
-            )
-        elif not task_store.update_task(title, input_data):
-            raise CustomHTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Task does not exist',
-                error_code='TASK_NOT_FOUND'
-            )
+        service = TaskService(db) # create service with injected db session
+        service.update_task(title, input_data) # update task using service (validation and error handled)
         return MessageResponse(
             message='Success',
             data='Task successfully updated',
@@ -206,15 +196,12 @@ async def delete_given_task(
         min_length=1,
         max_length=50,
         description='Title of the task to retrieve'
-    )
+    ),
+    db : Session = Depends(get_db)
 ) -> MessageResponse:
     try:
-        if not task_store.delete_task(title):
-            raise CustomHTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Task not found',
-                error_code='TASK_NOT_FOUND'
-            )
+        service = TaskService(db)
+        service.delete_task(title)
         return MessageResponse(
             message='Success',
             data='Task successfully deleted',
