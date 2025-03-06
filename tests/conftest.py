@@ -121,3 +121,9 @@ def sample_task(db_session):
     
     # return the created task to use in tests
     return task
+
+# run all tests, the following command is: pytest -v
+# run just repository tests: pytest tests/unit/test_repositories -v
+# run just service tests: pytest tests/unit/test_services -v
+# run just API tests: pytest tests/integration -v
+# run a specific test file: pytest tests/unit/test_repositories/test_task_repository.py -v
