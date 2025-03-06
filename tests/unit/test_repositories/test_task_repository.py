@@ -102,4 +102,48 @@ class TestTaskRepository:
         db_task = db_session.query(TaskModel).filter(TaskModel.id == sample_task.id).first()
         assert db_task is None
     
+    def test_get_all_no_filters(self, db_session: Session, sample_task: TaskModel):
+        '''Test retrieving all task without filters.'''
+        # Setup
+        repository = TaskRepository(db_session)
+        # adding second task
+        second_task = TaskModel(
+            title='Second Test Task',
+            description='This is another test task',
+            status='completed',
+            priority=5
+        )
+        db_session.add(second_task)
+        db_session.commit()
+        
+        # Test
+        tasks, count = repository.get_all()
+        
+        # Verify
+        assert count == 2
+        assert len(tasks) == 2
+        # check both tasks are in result
+        task_titles = [task.title for task in tasks]
+        assert sample_task.title in task_titles
+        assert 'Second Test Task' in task_titles
     
+    def test_get_all_with_status_filter(self, db_session: Session, sample_task: TaskModel):
+        '''Test filtering tasks by status.'''
+        # Setup
+        repository = TaskRepository(db_session)
+        completed_task = TaskModel(
+            title='Completed Task',
+            description='This is a completed task',
+            status='completed',
+            priority=1
+        )
+        db_session.add(completed_task)
+        db_session.commit()
+        
+        # Test
+        tasks, count = repository.get_all(status='completed')
+        
+        # Verify
+        assert count == 1
+        assert len(tasks) == 1
+        assert tasks[0].title == 'Completed Task'

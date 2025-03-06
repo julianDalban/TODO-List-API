@@ -4,3 +4,10 @@ project-instructions.md
 
 # Python
 __pycache__
+
+# Testing
+.pytest_cache
+
+# Database
+app.db
+test.db
