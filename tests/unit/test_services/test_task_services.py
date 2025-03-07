@@ -43,4 +43,30 @@ class TestTaskService:
         # make sure the repo methods were called correctly
         service.repository.get_by_title.assert_called_once_with(task_schema.title)
         service.repository.create.assert_called_once_with(task_schema)
+    
+    def test_get_task_by_title_found(self, db_session):
+        '''Test getting a task by title when it already exists'''
+        # Setup
+        service = TaskService(db_session)
         
+        # mock db task
+        mock_db_task = MagicMock()
+        mock_db_task.title = 'Existing Task'
+        mock_db_task.description = 'Test Description'
+        mock_db_task.status = 'pending'
+        mock_db_task.priority = 3
+        
+        service.repository.get_by_title = MagicMock(return_value=mock_db_task)
+        
+        # Test
+        result = service.get_task_by_title('Existing Task')
+        
+        # Verify
+        assert result is not None
+        assert result.title == 'Existing Task'
+        assert result.description == 'Test Description'
+        assert result.status == 'pending'
+        assert result.priority == 3
+        service.repository.get_by_title.assert_called_once_with('Existing Task')
+    
+    # def 
