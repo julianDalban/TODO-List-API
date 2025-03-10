@@ -147,3 +147,70 @@ class TestTaskRepository:
         assert count == 1
         assert len(tasks) == 1
         assert tasks[0].title == 'Completed Task'
+    
+    def test_get_all_with_pagination(self, db_session: Session, sample_task: TaskModel):
+        """Test pagination in get_all method."""
+        # Setup - add multiple tasks to test pagination
+        repository = TaskRepository(db_session)
+        for i in range(1, 6):  # Add 5 more tasks
+            db_session.add(TaskModel(
+                title=f"Pagination Test Task {i}",
+                description=f"Task for testing pagination {i}",
+                status="pending",
+                priority=i
+            ))
+        db_session.commit()
+        
+        # Test with different pagination parameters
+        tasks_page1, total = repository.get_all(skip=0, limit=3)
+        tasks_page2, _ = repository.get_all(skip=3, limit=3)
+        
+        # Verify
+        assert total >= 6  # At least 6 tasks (5 new + sample_task)
+        assert len(tasks_page1) == 3  # First page has exactly 3 items
+        assert len(tasks_page2) > 0  # Second page has at least 1 item
+        
+        # Verify pagination works as expected - items don't overlap
+        page1_titles = [task.title for task in tasks_page1]
+        page2_titles = [task.title for task in tasks_page2]
+        assert not any(title in page1_titles for title in page2_titles)
+    
+    def test_get_all_with_combined_filters(self, db_session: Session):
+        """Test combining multiple filters in get_all method."""
+        # Setup - add tasks with various combinations of status/priority
+        repository = TaskRepository(db_session)
+        tasks_data = [
+            {"title": "Task A", "description": "High priority pending", "status": "pending", "priority": 4},
+            {"title": "Task B", "description": "Medium priority in-progress", "status": "in-progress", "priority": 3},
+            {"title": "Task C", "description": "High priority completed", "status": "completed", "priority": 4},
+            {"title": "Task D", "description": "Low priority pending", "status": "pending", "priority": 2}
+        ]
+        
+        for task_data in tasks_data:
+            db_session.add(TaskModel(**task_data))
+        db_session.commit()
+        
+        # Test with combined filters
+        tasks, count = repository.get_all(
+            status="pending",
+            priority=4,
+            sort_by=SortField.TITLE,
+            sort_order=SortOrder.ASC
+        )
+        
+        # Verify
+        assert count == 1  # Only one task matches both filters
+        assert tasks[0].title == "Task A"
+        assert tasks[0].status == "pending"
+        assert tasks[0].priority == 4
+    
+    def test_get_all_with_no_matching_results(self, db_session: Session):
+        """Test get_all when no tasks match the filters."""
+        repository = TaskRepository(db_session)
+        
+        # Use a filter that won't match any tasks
+        tasks, count = repository.get_all(status="non-existent-status")
+        
+        # Verify
+        assert count == 0
+        assert len(tasks) == 0

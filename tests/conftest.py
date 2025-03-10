@@ -90,7 +90,7 @@ def client(db_session):
         try:
             yield db_session
         finally:
-            pass # Cleanup is handled by the db_session ficture
+            pass # Cleanup is handled by the db_session fixture
         
     # override the get_db dependency
     app.dependency_overrides[get_db] = override_get_db

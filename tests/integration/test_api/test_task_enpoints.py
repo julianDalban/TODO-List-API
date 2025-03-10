@@ -285,3 +285,65 @@ class TestTaskEndpoints:
         data = response.json()
         assert data["message"] == "Error"
         assert data["data"]["error_code"] == "TASK_NOT_FOUND"
+    
+    def test_create_task_with_invalid_data(self, client: TestClient):
+        """Test validation errors when creating a task with invalid data."""
+        # Setup - a task with invalid data (empty title)
+        invalid_task = {
+            "title": "",  # Empty title - should fail validation
+            "description": "This should fail validation",
+            "status": "pending",
+            "priority": 3
+        }
+        
+        # Test
+        response = client.post("/api/v1/tasks", json=invalid_task)
+        
+        # Verify
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        data = response.json()
+        assert data["message"] == "Error"
+        assert "VALIDATION_ERROR" in data["data"]["error_code"]
+        assert "title" in data["data"]["detail"]  # Error message should mention the title field
+    
+    def test_response_format_structure(self, client: TestClient, sample_task):
+        """Test that API responses follow the expected format structure."""
+        # Test
+        response = client.get(f"/api/v1/tasks/{sample_task.title}")
+        
+        # Verify response has the correct structure
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        
+        # Check message response structure
+        assert "message" in data
+        assert "data" in data
+        assert "status" in data
+        
+        # Check actual values
+        assert data["message"] == "Success"
+        assert data["status"] == 200
+        
+        # Check task data structure
+        task_data = data["data"]
+        assert "title" in task_data
+        assert "description" in task_data
+        assert "status" in task_data
+        assert "priority" in task_data
+    
+    @pytest.mark.parametrize(
+        "task_data,expected_status",
+        [
+            ({"title": "Valid Task", "description": "This is valid", "status": "pending", "priority": 3}, status.HTTP_201_CREATED),
+            ({"title": "Missing Description", "status": "pending", "priority": 3}, status.HTTP_422_UNPROCESSABLE_ENTITY),
+            ({"title": "Invalid Status", "description": "Invalid status", "status": "not-a-real-status", "priority": 3}, status.HTTP_422_UNPROCESSABLE_ENTITY),
+            ({"title": "Invalid Priority", "description": "Invalid priority", "status": "pending", "priority": 10}, status.HTTP_422_UNPROCESSABLE_ENTITY),
+        ]
+    )
+    def test_create_task_validation_cases(self, client: TestClient, task_data, expected_status):
+        """Test various validation scenarios when creating tasks."""
+        # Test
+        response = client.post("/api/v1/tasks", json=task_data)
+        
+        # Verify
+        assert response.status_code == expected_status
