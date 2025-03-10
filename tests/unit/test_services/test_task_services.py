@@ -315,5 +315,3 @@ class TestTaskService:
         
         assert excinfo.value.status_code == status.HTTP_409_CONFLICT
         assert "already exists" in excinfo.value.detail
-    
-    

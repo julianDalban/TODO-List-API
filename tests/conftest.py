@@ -4,15 +4,17 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
+import uuid
 
 from app.main import app
 from app.db.session import Base, get_db
+import app.db.models.task
 
 # Define the test database URL (using SQLite in-memory for speed and simplicity)
-TEST_DATABASE_URL = 'sqlite:///:memory:'
+TEST_DATABASE_URL = 'sqlite:///:memory:?cache=shared'
 
 # Create the test database engine
 # we use chack_same_thread=False to allow SQLite to work with FastAPI's asynchronous nature
@@ -36,14 +38,41 @@ def setup_test_db():
     
     Scope='session' means this fixture runs once per test session
     '''
-    # Create all tables defined in our SQLAlchemy models
-    Base.metadata.create_all(bind=test_engine)
+    print("\n=== SETUP DATABASE START ===")
     
-    # Run all the tests
+    # Check if engine is properly configured
+    print(f"Database URL: {TEST_DATABASE_URL}")
+    print(f"Engine: {test_engine}")
+    
+    # Check what tables exist before creation
+    inspector = inspect(test_engine)
+    before_tables = inspector.get_table_names()
+    print(f"Tables before creation: {before_tables}")
+    
+    # Create all tables
+    try:
+        Base.metadata.create_all(bind=test_engine)
+        print("Tables created successfully")
+    except Exception as e:
+        print(f"Error creating tables: {e}")
+        raise
+    
+    # Check what tables exist after creation
+    inspector = inspect(test_engine)
+    after_tables = inspector.get_table_names()
+    print(f"Tables after creation: {after_tables}")
+    
     yield
     
     # After all tests, drop the tables
-    Base.metadata.drop_all(bind=test_engine)
+    print("\n=== TEARDOWN DATABASE START ===")
+    try:
+        Base.metadata.drop_all(bind=test_engine)
+        print("Tables dropped successfully")
+    except Exception as e:
+        print(f"Error dropping tables: {e}")
+    
+    print("=== TEARDOWN DATABASE END ===")
 
 @pytest.fixture(scope='function')
 def db_session(setup_test_db):
@@ -60,20 +89,26 @@ def db_session(setup_test_db):
     
     This ensures test isolation - changes from one test don't affect others.
     '''
+    # Use the existing engine with the shared cache
+    connection = test_engine.connect()
+    # start transaction
+    transaction = connection.begin()
+    
     # Create a new session for the test
-    session = TestSessionLocal()
+    session = TestSessionLocal(bind=connection)
     
     try:
         # provide the session to the test
         yield session
     finally:
         # after test completes (even if it fails), rollback any changes
-        session.rollback()
+        transaction.rollback()
         # and close the session
-        session.close()
+        connection.close()
 
 @pytest.fixture(scope='function')
 def client(db_session):
+    from app.main import app
     '''
     Fixture that creates a TestClient with a test database session.
     
@@ -112,8 +147,9 @@ def sample_task(db_session):
     from app.db.models.task import Task as TaskModel
     
     # create a task instance
+    unique_id = str(uuid.uuid4())[:8]
     task = TaskModel(
-        title='Test Task',
+        title=f'Test Task {unique_id}',
         description='This is a test task',
         status='pending',
         priority=3

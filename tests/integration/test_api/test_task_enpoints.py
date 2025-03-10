@@ -250,7 +250,7 @@ class TestTaskEndpoints:
         }
         
         # Test
-        response = client.put("/api/v1/tasks/Non-existent-Task", json=update_data)
+        response = client.put("/api/v1/tasks/Non-existent Task", json=update_data)
         
         # Verify
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -347,3 +347,60 @@ class TestTaskEndpoints:
         
         # Verify
         assert response.status_code == expected_status
+    
+    def test_pagination_metadata(self, client: TestClient):
+        """Test that pagination metadata is correctly calculated and returned."""
+        # Setup - create enough tasks to test pagination
+        for i in range(15):  # Create 15 tasks
+            task_data = {
+                "title": f"Pagination Test {i}",
+                "description": f"Task {i} for testing pagination",
+                "status": "pending",
+                "priority": 1
+            }
+            client.post("/api/v1/tasks", json=task_data)
+        
+        # Test first page
+        response = client.get("/api/v1/tasks?limit=5&skip=0")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()["data"]
+        
+        # Verify pagination metadata
+        assert data["total"] >= 15
+        assert data["limit"] == 5
+        assert data["skip"] == 0
+        assert len(data["items"]) == 5
+        
+        # Test second page
+        response = client.get("/api/v1/tasks?limit=5&skip=5")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()["data"]
+        
+        # Verify second page
+        assert data["total"] >= 15
+        assert data["limit"] == 5
+        assert data["skip"] == 5
+        assert len(data["items"]) == 5
+    
+    def test_search_functionality(self, client: TestClient):
+        """Test the search functionality of the API."""
+        # Setup - create tasks with searchable terms
+        search_tasks = [
+            {"title": "Find this task", "description": "Regular description", "status": "pending", "priority": 3},
+            {"title": "Another task", "description": "This contains the findable term", "status": "pending", "priority": 3},
+            {"title": "Unrelated", "description": "Should not be in the found titles", "status": "pending", "priority": 3}
+        ]
+        
+        for task in search_tasks:
+            client.post("/api/v1/tasks", json=task)
+        
+        # Test search in title
+        response = client.get("/api/v1/tasks?search=find")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()["data"]
+        
+        # Should match the first two tasks but not the third
+        titles = [task["title"] for task in data["items"]]
+        assert "Find this task" in titles
+        assert "Another task" in titles
+        assert "Unrelated" not in titles
