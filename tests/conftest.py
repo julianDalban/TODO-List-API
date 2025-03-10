@@ -12,7 +12,7 @@ from app.main import app
 from app.db.session import Base, get_db
 
 # Define the test database URL (using SQLite in-memory for speed and simplicity)
-TEST_DATABASE_URL = 'sqlite:///./test.db'
+TEST_DATABASE_URL = 'sqlite:///:memory:'
 
 # Create the test database engine
 # we use chack_same_thread=False to allow SQLite to work with FastAPI's asynchronous nature
