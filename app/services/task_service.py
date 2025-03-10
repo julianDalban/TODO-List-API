@@ -154,7 +154,7 @@ class TaskService:
         # get filtered tasks from repo
         db_tasks, total_count = self.repository.get_all(
             status=status.value if status else None,
-            priority=priority.value if status else None,
+            priority=priority.value if priority else None,
             search=search,
             sort_by=sort_by,
             sort_order=sort_order,
