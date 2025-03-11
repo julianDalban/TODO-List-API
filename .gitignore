@@ -14,3 +14,4 @@ app.db
 # Testing
 test.db
 .coverage
+create_tasks.py
