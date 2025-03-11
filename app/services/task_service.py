@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import Optional, Tuple
 from fastapi import status
+from sqlalchemy.exc import IntegrityError
 
 from app.db.repositories.task import TaskRepository
 from app.db.models.task import Task as TaskModel
@@ -41,12 +42,18 @@ class TaskService:
                 detail='Task with same title already exists',
                 error_code='DUPLICATE_TASK'
             )
-        
-        # create task in db using repository
-        db_task = self.repository.create(task_schema)
-        
-        # convert back to Pydantic schema and return
-        return self._db_to_schema(db_task)
+        try:
+            # create task in db using repository
+            db_task = self.repository.create(task_schema)
+            
+            # convert back to Pydantic schema and return
+            return self._db_to_schema(db_task)
+        except IntegrityError:
+            raise CustomHTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail='Task with same title already exists',
+                error_code='DUPLICATE_TASK'
+            )
 
     def get_task_by_title(self, title: str) -> Optional[TaskSchema]:
         '''
