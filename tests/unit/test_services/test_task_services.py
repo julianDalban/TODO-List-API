@@ -304,6 +304,8 @@ class TestTaskService:
             priority=TaskPriority.MEDIUM
         )
         
+        service.repository.get_by_title = MagicMock(return_value=None)
+        
         # Mock repository to simulate a unique constraint violation
         from sqlalchemy.exc import IntegrityError
         mock_error = IntegrityError("statement", {}, "UNIQUE constraint failed")
